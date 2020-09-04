@@ -1,19 +1,29 @@
 import os
 from sklearn import preprocessing, model_selection
+import keras
 import pandas as pd
 import numpy as np
 from enum import Enum
 import random
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 
 class Splits(Enum):
     trn = 'train'
     val = 'validation'
     tst = 'test'
 
+    def __eq__(self, e2):
+        return self.name == e2.name
+
+    def __ne__(self, obj):
+        return not self.__eq__(obj)
+
+    def __hash__(self):
+        return self.name.__hash__()
+
 class DataHandler:
     data_dir = '../data'
-    data_props = {Splits.trn: 0.8, Splits.val: 0.5, Splits.tst: 0.5}
+    data_props = {Splits.trn: 0.6, Splits.val: 0.5, Splits.tst: 0.5}
     def __init__(self, fname):
         self.csv = os.path.join(self.data_dir, fname)
 
@@ -59,7 +69,7 @@ class DataHandler:
         Remembers the fit standardizer.
         """
         df = df.copy()
-        scalecols = df.columns
+        scalecols = self.get_predictor_colnames() ## df.columns
         try:
             self.standardizer
         except AttributeError:
@@ -100,11 +110,12 @@ class DataHandler:
         Splits df by row into train, validation, and test sets, using
         the proportions in the Splits enum.
         """
-        random.seed(seed)
         trn, valtst = model_selection.train_test_split(
-            df, test_size = 1 - self.data_props[Splits.trn])
+            df, test_size = 1 - self.data_props[Splits.trn],
+            random_state=seed)
         val, tst = model_selection.train_test_split(
-            valtst, test_size = self.data_props[Splits.tst])
+            valtst, test_size = self.data_props[Splits.tst],
+            random_state=seed)
         return trn, val, tst
 
 class AbaloneHandler(DataHandler):
@@ -115,4 +126,11 @@ class AbaloneHandler(DataHandler):
         self.one_hot_vars = ['sex']
         self.response_var = 'rings'
         super().__init__('abalone.csv')
+
+def relu(dim):
+    return keras.layers.Dense(
+        dim,
+        activation=keras.activations.relu,
+        kernel_initializer=keras.initializers.HeUniform(),
+        bias_initializer=keras.initializers.GlorotUniform())
 
