@@ -1,17 +1,16 @@
 import os
 from sklearn import preprocessing, model_selection
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
 import keras
 import pandas as pd
 import numpy as np
 from enum import Enum
 import random
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Callable
 
-class Splits(Enum):
-    trn = 'train'
-    val = 'validation'
-    tst = 'test'
-
+class Keynum(Enum):
+    """ An enum that works as a dict key. """
     def __eq__(self, e2):
         return self.name == e2.name
 
@@ -21,6 +20,36 @@ class Splits(Enum):
     def __hash__(self):
         return self.name.__hash__()
 
+
+class Splits(Keynum):
+    trn = 'train'
+    val = 'validation'
+    tst = 'test'
+
+class Regressor(Keynum):
+    Linear = LinearRegression
+    RandomForest = RandomForestRegressor
+
+class Evaluator:
+    def __init__(self, datasets):
+        self.trn = datasets[Splits.trn]
+        self.val = datasets[Splits.val]
+        self.tst = datasets[Splits.tst]
+
+class RegressionEvaluator(Evaluator):
+    def __init__(self, datasets, metric: Callable):
+        self.metric = metric
+        super().__init__(datasets)
+        
+    def evaluate_regressor(self, model) -> float:
+        """
+        :param model_fn: the model to use; e.g. LinearRegression.
+        Must implement fit(self, X, y).
+        """
+        model.fit(self.trn['X'], self.trn['y'])
+        pred = model.predict(self.val['X'])
+        return self.metric(self.val['y'], pred)
+    
 class DataHandler:
     data_dir = '../data'
     data_props = {Splits.trn: 0.6, Splits.val: 0.5, Splits.tst: 0.5}
@@ -134,3 +163,20 @@ def relu(dim):
         kernel_initializer=keras.initializers.HeUniform(),
         bias_initializer=keras.initializers.GlorotUniform())
 
+def make_relu_stack(in_dim, step=2):
+    start_dim = in_dim - 1
+    end_dim = 1
+
+    return [relu(dim) for dim in range(start_dim, end_dim - 1, -step)]
+
+def interleave_dropout(layers: List[keras.layers.Layer], input_dropout=0.8,
+                       hidden_dropout=0.5) -> List[keras.layers.Layer]:
+    new_layers = []
+    new_layers.append(keras.layers.Dropout(input_dropout))
+    for layer in layers[:-1]:
+        new_layers.append(layer)
+        new_layers.append(keras.layers.Dropout(hidden_dropout))
+    new_layers.append(layers[-1])
+    return new_layers
+        
+                      
