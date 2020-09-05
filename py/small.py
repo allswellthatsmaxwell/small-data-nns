@@ -34,17 +34,14 @@ class Regressor(Keynum):
     XGBoost = xgb.sklearn.XGBRegressor
 
 class Evaluator:
-    def __init__(self, datasets):
+    def __init__(self, datasets, metric: Callable):
         self.trn = datasets[Splits.trn]
         self.val = datasets[Splits.val]
         self.tst = datasets[Splits.tst]
-
-class RegressionEvaluator(Evaluator):
-    def __init__(self, datasets, metric: Callable):
         self.metric = metric
-        super().__init__(datasets)
-        
-    def evaluate_regressor(self, model) -> float:
+
+class RegressionEvaluator(Evaluator):        
+    def evaluate(self, model) -> float:
         """
         :param model_fn: the model to use; e.g. LinearRegression.
         Must implement fit(self, X, y).
