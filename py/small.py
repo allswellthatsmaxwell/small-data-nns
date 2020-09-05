@@ -10,6 +10,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 import xgboost as xgb
 import keras
+from keras.layers import Layer
 
 class Keynum(Enum):
     """ An enum that works as a dict key. """
@@ -176,18 +177,56 @@ def relu(dim):
         bias_initializer=keras.initializers.GlorotUniform())
 
 def make_relu_stack(in_dim, step=2):
+    """
+    Like make_cycle_stack but just for relus, no cycling.
+    """
     start_dim = in_dim - 1
     end_dim = 1
-
     return [relu(dim) for dim in range(start_dim, end_dim - 1, -step)]
 
-def interleave_dropout(layers: List[keras.layers.Layer], input_dropout=0.8,
-                       hidden_dropout=0.5) -> List[keras.layers.Layer]:
+def make_cycle_stack(in_dim,
+                     activations: List[Callable],
+                     step=2,
+                     kernel_initializer=keras.initializers.HeUniform(),
+                     bias_initializer=keras.initializers.GlorotUniform()):
+    """
+    Makes layers for a feed forward NN by starting at `in_dim - 1` 
+    and going down in dimension by `step`. Cycles through `activations`
+    on the way. For example, if in_dim=10, step=2, activations=[relu, tanh],
+    then dense layers of these activation(dimension) would be returned: 
+    [relu(9), tanh(7), relu(5), tanh(3), relu(1)] would be returned.
+    """
+    start_dim = in_dim - 1
+    end_dim = 1
+    dims = range(start_dim, end_dim - 1, -step)
+    layers = []
+    for i, dim in enumerate(dims):
+        activation_fn = activations[i % len(activations)]
+        layer = keras.layers.Dense(
+            dim,
+            activation=activation_fn,
+            kernel_initializer=kernel_initializer,
+            bias_initializer=bias_initializer)
+        layers.append(layer)
+    return layers
+
+def interleave(base_layers: List[Layer], other_layer: Layer) -> List[Layer]:
     new_layers = []
-    new_layers.append(keras.layers.Dropout(input_dropout))
+    for layer in base_layers[:-1]:
+        new_layers.append(layer)
+        new_layers.append(other_layer.copy())
+    new_layers.append(base_layers[-1])
+    return new_layers
+
+def interleave_dropout(layers: List[Layer], input_dropout=0.8,
+                       hidden_dropout=0.5) -> List[Layer]:
+    new_layers = []
+    if input_dropout > 0.0:
+        new_layers.append(keras.layers.Dropout(input_dropout))
     for layer in layers[:-1]:
         new_layers.append(layer)
-        new_layers.append(keras.layers.Dropout(hidden_dropout))
+        if hidden_dropout > 0.0:
+            new_layers.append(keras.layers.Dropout(hidden_dropout))
     new_layers.append(layers[-1])
     return new_layers
         
