@@ -1,13 +1,15 @@
 import os
-from sklearn import preprocessing, model_selection
-from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor
-import keras
 import pandas as pd
 import numpy as np
 from enum import Enum
 import random
 from typing import Dict, Any, List, Tuple, Callable
+
+from sklearn import preprocessing, model_selection
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+import xgboost as xgb
+import keras
 
 class Keynum(Enum):
     """ An enum that works as a dict key. """
@@ -29,6 +31,7 @@ class Splits(Keynum):
 class Regressor(Keynum):
     Linear = LinearRegression
     RandomForest = RandomForestRegressor
+    XGBoost = xgb.sklearn.XGBRegressor
 
 class Evaluator:
     def __init__(self, datasets):
@@ -76,7 +79,9 @@ class DataHandler:
         except AttributeError:
             self.encoder = preprocessing.OneHotEncoder(sparse=False)
             self.encoder.fit(df[self.one_hot_vars])
-        colnames = list(self.encoder.categories_[0])
+        colnames = np.ravel(
+            [_prefix_elements(lst, col)
+             for lst, col in zip(self.encoder.categories_, self.one_hot_vars)])
         one_hot_cols = self.encoder.transform(df[self.one_hot_vars])
         df[colnames] = one_hot_cols
         df = df.drop(columns=self.one_hot_vars)
@@ -156,6 +161,16 @@ class AbaloneHandler(DataHandler):
         self.response_var = 'rings'
         super().__init__('abalone.csv')
 
+class ServoHandler(DataHandler):
+    """
+    Handles data for the Servo dataset from the UCI Machine Learning repository.
+    """
+    def __init__(self):
+        self.one_hot_vars = ['motor', 'screw']
+        self.response_var = 'rise_time'
+        super().__init__('servo.csv')
+
+        
 def relu(dim):
     return keras.layers.Dense(
         dim,
@@ -180,3 +195,5 @@ def interleave_dropout(layers: List[keras.layers.Layer], input_dropout=0.8,
     return new_layers
         
                       
+def _prefix_elements(lst, col):
+    return [col + '_' + item for item in lst]
